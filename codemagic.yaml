@@ -27,37 +27,38 @@ workflows:
         script: |
           npx cap sync ios
 
+      - name: Increment build number
+        script: |
+          # Cette commande utilise le numéro de build Codemagic pour qu'il soit toujours unique
+          cd ios/App
+          agvtool new-version -all $BUILD_NUMBER
+
       - name: Set up code signing
         script: |
           xcode-project use-profiles
+
       - name: Build and export IPA
         script: |
           cd ios
-          echo "=== Contents of ios/ ==="
-          ls -la
-          echo "=== Searching for Xcode workspace/project ==="
-          find . -maxdepth 3 \( -name "*.xcworkspace" -o -name "*.xcodeproj" \)
-
           WORKSPACE=$(find . -maxdepth 3 -name "*.xcworkspace" | head -n 1)
           PROJECT=$(find . -maxdepth 3 -name "*.xcodeproj" | head -n 1)
 
           if [ -n "$WORKSPACE" ]; then
-            echo "✅ Using workspace: $WORKSPACE"
             xcode-project build-ipa \
               --workspace "$WORKSPACE" \
               --scheme App
           elif [ -n "$PROJECT" ]; then
-            echo "✅ Using project: $PROJECT"
             xcode-project build-ipa \
               --project "$PROJECT" \
               --scheme App
           else
-            echo "❌ No .xcworkspace or .xcodeproj found under ios/"
+            echo "❌ No .xcworkspace or .xcodeproj found"
             exit 1
           fi
 
     artifacts:
       - ios/build/**/*.ipa
+      - "*.ipa"
 
     publishing:
       app_store_connect:
