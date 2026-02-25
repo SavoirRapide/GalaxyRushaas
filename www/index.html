@@ -1879,8 +1879,9 @@ if (touchZone){
 
 
 /* =========================================================
-   🔊 AUDIO MANAGER V19 (IOS NATIVE FIX)
-   - Utilisation exclusive des balises <audio> (Ignore le bouton Muet iOS)
+   🔊 AUDIO MANAGER V19 (IOS NATIVE FIX - MUTE CORRIGÉ)
+   - Utilisation des balises <audio> standards
+   - Contourne le bug iOS qui ignore la propriété .volume
 ========================================================= */
 
 const sfxDeath = document.getElementById("sfxDeath");
@@ -1901,7 +1902,7 @@ function playMusic(which) {
     if (currentMusicState === which) return;
     currentMusicState = which;
 
-    applyAudioSettings(); // Met à jour le volume avant de jouer
+    applyAudioSettings(); // Applique le MUTE avant de jouer
 
     if (which === "game") {
         if (bgmMenu) bgmMenu.pause();
@@ -1920,7 +1921,8 @@ function playMusic(which) {
 
 // --- 2. SFX ---
 function playSFX(originalTrack, volumeScale = 1.0) {
-    if (!originalTrack || audioSettings.mute) return;
+    // Si mute global OU slider SFX à 0, on ne joue rien
+    if (!originalTrack || audioSettings.mute || audioSettings.sfx === 0) return;
     const clone = originalTrack.cloneNode();
     clone.volume = Math.max(0, Math.min(1, (audioSettings.sfx / 100) * volumeScale));
     clone.play().catch(()=>{});
@@ -1930,17 +1932,25 @@ function playSFX(originalTrack, volumeScale = 1.0) {
 function stopMusic() { playMusic("none"); }
 
 /* =========================
-   3. LISTENERS UI (MUTE INSTANTANÉ)
+   3. LISTENERS UI & MUTE iOS
 ========================= */
 const optMusic = document.getElementById("optMusic");
 const optSfx   = document.getElementById("optSfx");
 const optMute  = document.getElementById("optMute");
 
 function applyAudioSettings() {
-    // Si mute coché = volume à 0. Sinon = slider.
-    const vol = audioSettings.mute ? 0 : Math.max(0, Math.min(1, audioSettings.music / 100));
-    if (bgmMenu) bgmMenu.volume = vol * 0.9; // Le menu est un peu moins fort
-    if (bgmGame) bgmGame.volume = vol;
+    // 🔥 LE FIX EST ICI : iOS ignore volume=0, on DOIT forcer .muted
+    const isMuted = audioSettings.mute || audioSettings.music === 0;
+    const vol = isMuted ? 0 : Math.max(0, Math.min(1, audioSettings.music / 100));
+    
+    if (bgmMenu) {
+        bgmMenu.volume = vol * 0.9; // Pour Android/PC
+        bgmMenu.muted = isMuted;    // Obligatoire pour iOS
+    }
+    if (bgmGame) {
+        bgmGame.volume = vol;       // Pour Android/PC
+        bgmGame.muted = isMuted;    // Obligatoire pour iOS
+    }
 }
 
 if (optMusic && optSfx && optMute) {
@@ -1962,14 +1972,13 @@ if (optMusic && optSfx && optMute) {
     optMute.addEventListener("change", () => {
         audioSettings.mute = optMute.checked;
         localStorage.setItem("audioSettings", JSON.stringify(audioSettings));
-        applyAudioSettings();
+        applyAudioSettings(); // Coupe ou remet la musique instantanément
     });
 }
 
 function unlockAllAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
-  // Débloque tous les sons au premier tap de l'utilisateur
   [sfxDeath, sfxIntro, sfxOverdrive, bgmMenu, bgmGame].forEach(snd => { if(snd) snd.load(); });
 }
 
@@ -8185,7 +8194,7 @@ const AD_IDS = {
     // Ton ID Vidéo Récompensée (Revive) - Espace à la fin supprimé !
     reward:       'ca-app-pub-2409581870901167/2901010676', 
     
-    isTesting:    true 
+    isTesting:    false 
 };
 
 // --- 1. INITIALISATION ---
