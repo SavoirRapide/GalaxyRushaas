@@ -27,12 +27,12 @@ workflows:
         script: |
           npx cap sync ios
 
-      - name: Set version and build number
-        script: |
-          cd ios/App
-          agvtool new-marketing-version $CM_BUILD_VERSION
-          agvtool new-version -all $BUILD_NUMBER
-
+      - name: Set iOS version
+  script: |
+    cd ios/App
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.1" App/Info.plist
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
+    
       - name: Set up code signing
         script: |
           xcode-project use-profiles
