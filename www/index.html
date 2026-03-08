@@ -8182,19 +8182,34 @@ function hardRefreshCanvas() {
     }
 }
 /* =========================================================
-   📺 ADMOB MANAGER V3 (CONSOLIDATED & SECURE - APPLE READY)
+   📺 ADMOB MANAGER V4 (CONSOLIDATED & SECURE - APPLE READY)
 ========================================================= */
 const AdMob = window.Capacitor && window.Capacitor.Plugins.AdMob;
 
 const AD_IDS = {
-    // ⚠️ ATTENTION : J'ai mis l'ID de test officiel pour l'interstitiel.
+    // ⚠️ ATTENTION : ID de test officiel pour l'interstitiel.
     // Si tu as créé un bloc "Interstitiel" sur ton compte AdMob iOS, mets-le ici.
     interstitial: 'ca-app-pub-2409581870901167/2170712506', 
     
-    // Ton ID Vidéo Récompensée (Revive) - Espace à la fin supprimé !
+    // Ton ID Vidéo Récompensée (Revive)
     reward:       'ca-app-pub-2409581870901167/2901010676', 
     
     isTesting:    false 
+};
+
+// 🛡️ Variable globale pour sécuriser la récompense et gérer le bug iOS
+let rewardGranted = false;
+
+// 💰 Fonction centralisée pour la récompense (compatible Android + iOS)
+const handleReward = (item) => {
+    console.log("💰 Récompense AdMob reçue !", item);
+    rewardGranted = true; // Le joueur a bien fini la vidéo
+
+    if (window.pendingRewardSuccess) {
+        window.pendingRewardSuccess(); 
+        window.pendingRewardSuccess = null;
+        window.pendingRewardFail = null; // On nettoie l'échec pour éviter les doublons
+    }
 };
 
 // --- 1. INITIALISATION ---
@@ -8205,7 +8220,6 @@ async function initAds() {
         await AdMob.initialize();
 
         // 🍎 FIX APPLE OBLIGATOIRE : Affiche le popup de suivi (ATT)
-        // On le demande AVANT de préparer les pubs, sinon elles ne seront pas ciblées
         try {
             const trackingInfo = await AdMob.requestTrackingAuthorization();
             console.log("Statut du suivi iOS :", trackingInfo);
@@ -8217,26 +8231,45 @@ async function initAds() {
         await AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
         await AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
 
-        // 💰 Écouteur : Récompense (Reward)
-        AdMob.addListener('onRewardedVideoAdReward', (item) => {
-            console.log("💰 Récompense AdMob reçue !");
-            if (window.pendingRewardSuccess) {
-                window.pendingRewardSuccess(); 
-                window.pendingRewardSuccess = null;
-            }
-        });
+        // 🍎 FIX iOS : On écoute TOUTES les variantes du nom de l'événement
+        AdMob.addListener('onRewardedVideoAdReward', handleReward);
+        AdMob.addListener('rewardedVideoRewardItem', handleReward);
+        AdMob.addListener('rewarded', handleReward);
+        AdMob.addListener('onRewarded', handleReward);
 
         // 📺 Écouteur : Pub Récompensée FERMÉE
         AdMob.addListener('onRewardedVideoAdDismissed', () => {
-            console.log("📺 Reward Ad closed -> repairing GPU");
-            hardRefreshCanvas();
-            AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
+            console.log("📺 Reward Ad closed");
+
+            // 🍎 FIX iOS : On attend 300ms au cas où iOS envoie la récompense en retard
+            // Ça évite aussi que hardRefreshCanvas() gèle le thread et bloque la récompense
+            setTimeout(() => {
+                if (!rewardGranted) {
+                    console.log("❌ Pub fermée prématurément (pas de récompense)");
+                    if (window.pendingRewardFail) {
+                        window.pendingRewardFail();
+                    }
+                }
+
+                // Nettoyage pour la prochaine pub
+                rewardGranted = false;
+                window.pendingRewardSuccess = null;
+                window.pendingRewardFail = null;
+
+                console.log("-> repairing GPU");
+                if (typeof hardRefreshCanvas === 'function') {
+                    hardRefreshCanvas();
+                }
+                AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
+            }, 300);
         });
 
         // 📺 Écouteur : Interstitiel FERMÉ
         AdMob.addListener('onInterstitialAdDismissed', () => {
             console.log("📺 Interstitial Ad closed -> repairing GPU");
-            hardRefreshCanvas();
+            if (typeof hardRefreshCanvas === 'function') {
+                hardRefreshCanvas();
+            }
             AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
         });
 
@@ -8272,14 +8305,18 @@ async function showRewardedAd(onSuccess, onFail) {
     }
 
     try {
+        rewardGranted = false; // Remise à zéro obligatoire avant de lancer la pub
         window.pendingRewardSuccess = onSuccess;
+        window.pendingRewardFail = onFail; // 🍎 NOUVEAU : Sauvegarde de la fonction d'échec
+        
         await AdMob.showRewardVideoAd();
-        setTimeout(() => {
-            AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
-        }, 1000);
+        // Le `setTimeout` pour préparer la pub suivante a été retiré d'ici,
+        // car c'est désormais géré proprement à la fermeture (`onRewardedVideoAdDismissed`).
     } catch (e) {
         console.warn("Reward Fail:", e);
         if(onFail) onFail();
+        window.pendingRewardSuccess = null;
+        window.pendingRewardFail = null;
         AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
     }
 }
