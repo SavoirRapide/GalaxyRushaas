@@ -30,7 +30,7 @@ workflows:
       - name: Set version and build number
         script: |
           cd ios/App
-          agvtool new-marketing-version 1.0.1
+          agvtool new-marketing-version $CM_BUILD_VERSION
           agvtool new-version -all $BUILD_NUMBER
 
       - name: Set up code signing
