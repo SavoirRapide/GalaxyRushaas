@@ -27,10 +27,10 @@ workflows:
         script: |
           npx cap sync ios
 
-      - name: Increment build number
+      - name: Set version and build number
         script: |
-          # Cette commande utilise le numéro de build Codemagic pour qu'il soit toujours unique
           cd ios/App
+          agvtool new-marketing-version 1.0.1
           agvtool new-version -all $BUILD_NUMBER
 
       - name: Set up code signing
