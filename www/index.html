@@ -8182,7 +8182,7 @@ function hardRefreshCanvas() {
     }
 }
 /* =========================================================
-   📺 ADMOB MANAGER V4.2 (FIX TIMING REWARD & ANTI-DOUBLON)
+   📺 ADMOB MANAGER V5 (ULTIMATE FIX - iOS & ANDROID)
 ========================================================= */
 const AdMob = window.Capacitor && window.Capacitor.Plugins.AdMob;
 
@@ -8192,19 +8192,19 @@ const AD_IDS = {
     isTesting:    false
 };
 
-// 🛡️ Flag de contrôle global (La "boîte aux lettres")
-let rewardGranted = false;
+// 🛡️ Flags de contrôle global
+let rewardGranted = false; // La "boîte aux lettres"
+let isDismissing = false;  // Verrou anti-double fermeture (Bug iOS)
+let isAdMobInitialized = false; // Anti-double initialisation Capacitor
 
-// 💰 LE FACTEUR : Enregistre la récompense, mais NE TOUCHE PAS au jeu
+// 💰 LE FACTEUR : Enregistre la récompense pendant la pub
 const handleReward = (item) => {
-    if (rewardGranted) return; // Sécurité anti-doublon
-    console.log("📬 AdMob : Le joueur a regardé la vidéo jusqu'au bout. Colis déposé !");
-    rewardGranted = true; // On valide, mais on attend que la pub se ferme pour agir
+    if (rewardGranted) return;
+    console.log("📬 AdMob : Le joueur a fini la vidéo. Récompense mise en attente !");
+    rewardGranted = true; 
 };
 
 // --- 1. INITIALISATION ---
-let isAdMobInitialized = false; // Sécurité pour ne pas init 2 fois
-
 async function initAds() {
     if (!AdMob || isAdMobInitialized) return;
     isAdMobInitialized = true;
@@ -8219,47 +8219,77 @@ async function initAds() {
         await AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
         await AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
 
-        // 🍎 LISTENERS DE RÉCOMPENSE (Le facteur passe)
-    const rewardEvents = ['onRewardedVideoAdReward', 'rewardedVideoRewardItem', 'rewarded', 'onRewarded', 'onAdReward'];
+        // 🎯 ÉCOUTEURS DE RÉCOMPENSE (Toutes les variantes possibles)
+        const rewardEvents = [
+            'onRewardedVideoAdReward', 
+            'rewardedVideoRewardItem', 
+            'rewarded', 
+            'onRewarded', 
+            'onAdReward'
+        ];
         rewardEvents.forEach(evt => AdMob.addListener(evt, handleReward));
 
-        // 📺 FERMETURE REWARD (Le joueur revoit le jeu -> C'est ICI qu'on ouvre la boîte aux lettres)
-        AdMob.addListener('onRewardedVideoAdDismissed', () => {
-            console.log("📺 AdMob : La pub est fermée, le joueur revoit le jeu.");
+        // 📺 FERMETURE REWARD (Le Fix iOS est ici)
+        const dismissEvents = [
+            'onRewardedVideoAdDismissed',    // Standard Android
+            'rewardVideoAdDismissed',        // Standard iOS Capacitor v8
+            'onAdDismissedFullScreenContent' // Sécurité native Google
+        ];
 
-            // Léger délai (300ms) pour laisser le Canvas HTML5 se réveiller proprement sur iOS/Android
-            setTimeout(() => {
-                if (rewardGranted) {
-                    console.log("✅ RÉCOMPENSE DISTRIBUÉE ! (Action dans le jeu)");
-                    if (window.pendingRewardSuccess) window.pendingRewardSuccess();
-                } else {
-                    console.log("❌ Pub fermée trop tôt, aucune récompense.");
-                    if (window.pendingRewardFail) window.pendingRewardFail();
-                }
+        dismissEvents.forEach(evt => {
+            AdMob.addListener(evt, () => {
+                // Si on a déjà commencé à fermer via un autre événement, on bloque
+                if (isDismissing) return;
+                isDismissing = true;
 
-                // 🧹 RESET COMPLET POUR LA PROCHAINE FOIS
-                rewardGranted = false;
-                window.pendingRewardSuccess = null;
-                window.pendingRewardFail = null;
+                console.log(`📺 AdMob : Pub Reward fermée (via ${evt})`);
 
-                // Relance le GPU si nécessaire
-                if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
-                
-                // On recharge une nouvelle pub silencieusement
-                AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
-            }, 800);
+                // Délai de 600ms pour laisser le Canvas iOS se réveiller
+                setTimeout(() => {
+                    if (rewardGranted) {
+                        console.log("✅ RÉCOMPENSE DISTRIBUÉE ! (Action dans le jeu)");
+                        if (window.pendingRewardSuccess) window.pendingRewardSuccess();
+                    } else {
+                        console.log("❌ Pub fermée trop tôt, aucune récompense.");
+                        if (window.pendingRewardFail) window.pendingRewardFail();
+                    }
+
+                    // 🧹 RESET COMPLET
+                    rewardGranted = false;
+                    window.pendingRewardSuccess = null;
+                    window.pendingRewardFail = null;
+
+                    // Relance le rendu graphique si la fonction existe
+                    if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
+                    
+                    // On prépare la prochaine pub
+                    AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
+
+                    // On libère le verrou de fermeture après 1 seconde
+                    setTimeout(() => { isDismissing = false; }, 1000);
+
+                }, 600);
+            });
         });
 
         // 📺 FERMETURE INTERSTITIEL
-        AdMob.addListener('onInterstitialAdDismissed', () => {
-            console.log("📺 AdMob : Interstitiel fermé.");
-            if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
-            AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
+        const interstitialDismissEvents = [
+            'onInterstitialAdDismissed', 
+            'interstitialAdDismissed', 
+            'onAdDismissedFullScreenContent'
+        ];
+        
+        interstitialDismissEvents.forEach(evt => {
+            AdMob.addListener(evt, () => {
+                console.log(`📺 AdMob : Interstitiel fermé (via ${evt})`);
+                if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
+                AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
+            });
         });
 
     } catch (e) { 
         console.warn("AdMob Init Fail:", e); 
-        isAdMobInitialized = false; // Permet de réessayer plus tard si ça a planté
+        isAdMobInitialized = false; 
     }
 }
 
@@ -8278,7 +8308,7 @@ async function showGameOverAd() {
     }
 }
 
-// --- 4. REWARD (REVIVE & ROULETTE) ---
+// --- 4. REWARD (REVIVE & SHOP) ---
 async function showRewardedAd(onSuccess, onFail) {
     if (!AdMob) { 
         console.log("💻 Mode Web: Simulation Pub Récompense");
@@ -8287,8 +8317,10 @@ async function showRewardedAd(onSuccess, onFail) {
     }
 
     try {
-        // !!! IMPORTANT !!! On vide la boîte aux lettres juste avant de lancer la pub
+        // On sécurise l'état juste avant l'affichage
         rewardGranted = false; 
+        isDismissing = false;
+        
         window.pendingRewardSuccess = onSuccess;
         window.pendingRewardFail = onFail; 
         
@@ -8308,10 +8340,8 @@ window.isAdSystemReady = function() { return true; };
 
 // 🚀 Lancement (Sécurisé anti-double lancement)
 if (window.Capacitor) {
-    // Si Capacitor est déjà là, on lance
     initAds();
 } else {
-    // Sinon, on attend que le device soit prêt
     document.addEventListener('deviceready', initAds, false);
 }
 </script>
