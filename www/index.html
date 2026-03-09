@@ -8182,7 +8182,7 @@ function hardRefreshCanvas() {
     }
 }
 /* =========================================================
-   📺 ADMOB MANAGER V5 (ULTIMATE FIX - iOS & ANDROID)
+   📺 ADMOB MANAGER V6 (ULTIMATE FIX - CONFLITS RÉSOLUS)
 ========================================================= */
 const AdMob = window.Capacitor && window.Capacitor.Plugins.AdMob;
 
@@ -8193,11 +8193,11 @@ const AD_IDS = {
 };
 
 // 🛡️ Flags de contrôle global
-let rewardGranted = false; // La "boîte aux lettres"
-let isDismissing = false;  // Verrou anti-double fermeture (Bug iOS)
-let isAdMobInitialized = false; // Anti-double initialisation Capacitor
+let rewardGranted = false; 
+let isDismissing = false;  
+let isAdMobInitialized = false; 
 
-// 💰 LE FACTEUR : Enregistre la récompense pendant la pub
+// 💰 LE FACTEUR
 const handleReward = (item) => {
     if (rewardGranted) return;
     console.log("📬 AdMob : Le joueur a fini la vidéo. Récompense mise en attente !");
@@ -8212,14 +8212,14 @@ async function initAds() {
     try {
         await AdMob.initialize();
 
-        // 🍎 iOS ATT (Suivi Apple)
+        // 🍎 iOS ATT
         try { await AdMob.requestTrackingAuthorization(); } catch(e){}
 
-        // Préparation des pubs en arrière-plan
+        // Préparation
         await AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
         await AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
 
-        // 🎯 ÉCOUTEURS DE RÉCOMPENSE (Toutes les variantes possibles)
+        // 🎯 ÉCOUTEURS DE RÉCOMPENSE
         const rewardEvents = [
             'onRewardedVideoAdReward', 
             'rewardedVideoRewardItem', 
@@ -8229,54 +8229,45 @@ async function initAds() {
         ];
         rewardEvents.forEach(evt => AdMob.addListener(evt, handleReward));
 
-        // 📺 FERMETURE REWARD (Le Fix iOS est ici)
+        // 📺 FERMETURE REWARD (Épuré : suppression du FullScreenContent générique)
         const dismissEvents = [
-            'onRewardedVideoAdDismissed',    // Standard Android
-            'rewardVideoAdDismissed',        // Standard iOS Capacitor v8
-            'onAdDismissedFullScreenContent' // Sécurité native Google
+            'onRewardedVideoAdDismissed',    // Android
+            'rewardVideoAdDismissed'         // iOS Capacitor v8
         ];
 
         dismissEvents.forEach(evt => {
             AdMob.addListener(evt, () => {
-                // Si on a déjà commencé à fermer via un autre événement, on bloque
                 if (isDismissing) return;
                 isDismissing = true;
 
                 console.log(`📺 AdMob : Pub Reward fermée (via ${evt})`);
 
-                // Délai de 600ms pour laisser le Canvas iOS se réveiller
                 setTimeout(() => {
                     if (rewardGranted) {
-                        console.log("✅ RÉCOMPENSE DISTRIBUÉE ! (Action dans le jeu)");
+                        console.log("✅ RÉCOMPENSE DISTRIBUÉE !");
                         if (window.pendingRewardSuccess) window.pendingRewardSuccess();
                     } else {
                         console.log("❌ Pub fermée trop tôt, aucune récompense.");
                         if (window.pendingRewardFail) window.pendingRewardFail();
                     }
 
-                    // 🧹 RESET COMPLET
+                    // 🧹 RESET
                     rewardGranted = false;
                     window.pendingRewardSuccess = null;
                     window.pendingRewardFail = null;
 
-                    // Relance le rendu graphique si la fonction existe
                     if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
-                    
-                    // On prépare la prochaine pub
                     AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
 
-                    // On libère le verrou de fermeture après 1 seconde
                     setTimeout(() => { isDismissing = false; }, 1000);
-
                 }, 600);
             });
         });
 
-        // 📺 FERMETURE INTERSTITIEL
+        // 📺 FERMETURE INTERSTITIEL (Épuré aussi)
         const interstitialDismissEvents = [
             'onInterstitialAdDismissed', 
-            'interstitialAdDismissed', 
-            'onAdDismissedFullScreenContent'
+            'interstitialAdDismissed'
         ];
         
         interstitialDismissEvents.forEach(evt => {
@@ -8317,7 +8308,6 @@ async function showRewardedAd(onSuccess, onFail) {
     }
 
     try {
-        // On sécurise l'état juste avant l'affichage
         rewardGranted = false; 
         isDismissing = false;
         
@@ -8338,7 +8328,7 @@ async function showRewardedAd(onSuccess, onFail) {
 // Override sécurité
 window.isAdSystemReady = function() { return true; };
 
-// 🚀 Lancement (Sécurisé anti-double lancement)
+// 🚀 Lancement 
 if (window.Capacitor) {
     initAds();
 } else {
