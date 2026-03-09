@@ -8182,14 +8182,14 @@ function hardRefreshCanvas() {
     }
 }
 /* =========================================================
-   📺 ADMOB MANAGER V6 (ULTIMATE FIX - CONFLITS RÉSOLUS)
+   📺 ADMOB MANAGER V6.1 (ULTIMATE FIX - NOMS D'ÉVÉNEMENTS V8)
 ========================================================= */
 const AdMob = window.Capacitor && window.Capacitor.Plugins.AdMob;
 
 const AD_IDS = {
     interstitial: 'ca-app-pub-2409581870901167/2170712506',
     reward:       'ca-app-pub-2409581870901167/2901010676',
-    isTesting:    false
+    isTesting:    true
 };
 
 // 🛡️ Flags de contrôle global
@@ -8219,9 +8219,10 @@ async function initAds() {
         await AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
         await AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
 
-        // 🎯 ÉCOUTEURS DE RÉCOMPENSE
+        // 🎯 ÉCOUTEURS DE RÉCOMPENSE (CORRIGÉS POUR V8)
         const rewardEvents = [
-            'onRewardedVideoAdReward', 
+            'rewardedVideoAdReward',     // 🔥 LE VRAI NOM OFFICIEL V8 (iOS/Android)
+            'onRewardedVideoAdReward',   // Fallback Android
             'rewardedVideoRewardItem', 
             'rewarded', 
             'onRewarded', 
@@ -8229,10 +8230,11 @@ async function initAds() {
         ];
         rewardEvents.forEach(evt => AdMob.addListener(evt, handleReward));
 
-        // 📺 FERMETURE REWARD (Épuré : suppression du FullScreenContent générique)
+        // 📺 FERMETURE REWARD (CORRIGÉS POUR V8)
         const dismissEvents = [
-            'onRewardedVideoAdDismissed',    // Android
-            'rewardVideoAdDismissed'         // iOS Capacitor v8
+            'rewardedVideoAdDismissed',  // 🔥 LE VRAI NOM OFFICIEL V8 (avec le "ed")
+            'onRewardedVideoAdDismissed',// Fallback Android
+            'rewardVideoAdDismissed'     // Fallback de ton ancienne faute de frappe
         ];
 
         dismissEvents.forEach(evt => {
@@ -8264,10 +8266,10 @@ async function initAds() {
             });
         });
 
-        // 📺 FERMETURE INTERSTITIEL (Épuré aussi)
+        // 📺 FERMETURE INTERSTITIEL
         const interstitialDismissEvents = [
-            'onInterstitialAdDismissed', 
-            'interstitialAdDismissed'
+            'interstitialAdDismissed', 
+            'onInterstitialAdDismissed'
         ];
         
         interstitialDismissEvents.forEach(evt => {
