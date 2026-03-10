@@ -30,7 +30,7 @@ workflows:
       - name: Set iOS version
         script: |
           cd ios/App
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.1" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.4" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
 
       - name: Set up code signing
