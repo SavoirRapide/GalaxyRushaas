@@ -14,6 +14,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.a2games.galaxyrush
       vars:
+        # Ton ID AdMob iOS de production
         ADMOB_APP_ID: "ca-app-pub-2409581870901167~7654643904"
 
     scripts:
@@ -23,7 +24,7 @@ workflows:
 
       - name: Build web assets
         script: |
-          npm run build || echo "No build script found"
+          npm run build || echo "⚠️ No build script found, skipping..."
 
       - name: Sync Capacitor
         script: |
@@ -33,37 +34,37 @@ workflows:
         script: |
           cd ios/App/App
           
-          # 1. AdMob ID
+          # 1. Injection ID AdMob
           /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ADMOB_APP_ID" Info.plist
 
-          # 2. Désactiver le mode Ad Manager (Force le mode AdMob pur)
+          # 2. Force le mode AdMob (vs Ad Manager)
           /usr/libexec/PlistBuddy -c "Delete :GADIsAdManagerApp" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :GADIsAdManagerApp bool false" Info.plist
 
-          # 3. Apple Tracking Transparency
+          # 3. Texte de la popup d'autorisation de suivi (ATT)
           /usr/libexec/PlistBuddy -c "Delete :NSUserTrackingUsageDescription" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :NSUserTrackingUsageDescription string Cette application utilise des identifiants pour vous proposer des publicités personnalisées et mesurer leur efficacité." Info.plist
 
-          # 4. SKAdNetwork Multi-Réseaux (Optimise le remplissage des pubs)
+          # 4. SKAdNetwork Multi-Réseaux (Optimise le remplissage/revenus des pubs)
           /usr/libexec/PlistBuddy -c "Delete :SKAdNetworkItems" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems array" Info.plist
           
-          # Google
+          # Google SKAdNetwork
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0 dict" Info.plist
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork" Info.plist
           
-          # AppLovin & autres partenaires majeurs
+          # AppLovin & Partenaires
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:1 dict" Info.plist
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:1:SKAdNetworkIdentifier string 4fzdc2evr5.skadnetwork" Info.plist
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:2 dict" Info.plist
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:2:SKAdNetworkIdentifier string 2fnua5tdw4.skadnetwork" Info.plist
 
-          # 5. Versioning
+          # 5. Mise à jour version vers 1.0.5
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.5" Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
           
-          echo "✅ Info.plist configuré pour une diffusion maximale"
+          echo "✅ Info.plist configuré avec succès"
 
       - name: Set up code signing
         script: |
@@ -76,20 +77,18 @@ workflows:
           PROJECT=$(find . -maxdepth 3 -name "*.xcodeproj" | head -n 1)
 
           if [ -n "$WORKSPACE" ]; then
-            xcode-project build-ipa \
-              --workspace "$WORKSPACE" \
-              --scheme App
+            xcode-project build-ipa --workspace "$WORKSPACE" --scheme App
           elif [ -n "$PROJECT" ]; then
-            xcode-project build-ipa \
-              --project "$PROJECT" \
-              --scheme App
+            xcode-project build-ipa --project "$PROJECT" --scheme App
           else
             echo "❌ No .xcworkspace or .xcodeproj found"
             exit 1
           fi
 
     artifacts:
+      # On cherche partout pour ne plus jamais avoir l'erreur "No artifacts found"
       - build/ios/ipa/*.ipa
+      - ios/build/remote/ipa/*.ipa
       - /tmp/build/artifacts/*.ipa
       - "*.ipa"
 
