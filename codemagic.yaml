@@ -13,6 +13,9 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.a2games.galaxyrush
+      vars:
+        # ID AdMob de l'application iOS (Production)
+        ADMOB_APP_ID: "ca-app-pub-2409581870901167~7654643904"
 
     scripts:
       - name: Install dependencies
@@ -27,11 +30,20 @@ workflows:
         script: |
           npx cap sync ios
 
-      - name: Set iOS version
+      - name: Configure AdMob & iOS Versioning
         script: |
-          cd ios/App
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.4" App/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" App/Info.plist
+          cd ios/App/App
+          
+          # 1. Injection/Update de l'ID AdMob
+          # On supprime d'abord pour éviter les doublons, puis on ajoute
+          /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ADMOB_APP_ID" Info.plist
+
+          # 2. Mise à jour de la version vers 1.0.5
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.5" Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
+          
+          echo "✅ Info.plist mis à jour (Version 1.0.5 / ID AdMob injecté)"
 
       - name: Set up code signing
         script: |
@@ -57,7 +69,8 @@ workflows:
           fi
 
     artifacts:
-      - ios/build/**/*.ipa
+      - build/ios/ipa/*.ipa
+      - /tmp/build/artifacts/*.ipa
       - "*.ipa"
 
     publishing:
