@@ -14,7 +14,6 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.a2games.galaxyrush
       vars:
-        # ID AdMob de l'application iOS (Production)
         ADMOB_APP_ID: "ca-app-pub-2409581870901167~7654643904"
 
     scripts:
@@ -30,20 +29,41 @@ workflows:
         script: |
           npx cap sync ios
 
-      - name: Configure AdMob & iOS Versioning
+      - name: Configure AdMob, Privacy & SKAdNetwork
         script: |
           cd ios/App/App
           
-          # 1. Injection/Update de l'ID AdMob
-          # On supprime d'abord pour éviter les doublons, puis on ajoute
+          # 1. AdMob ID
           /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ADMOB_APP_ID" Info.plist
 
-          # 2. Mise à jour de la version vers 1.0.5
+          # 2. Désactiver le mode Ad Manager (Force le mode AdMob pur)
+          /usr/libexec/PlistBuddy -c "Delete :GADIsAdManagerApp" Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :GADIsAdManagerApp bool false" Info.plist
+
+          # 3. Apple Tracking Transparency
+          /usr/libexec/PlistBuddy -c "Delete :NSUserTrackingUsageDescription" Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :NSUserTrackingUsageDescription string Cette application utilise des identifiants pour vous proposer des publicités personnalisées et mesurer leur efficacité." Info.plist
+
+          # 4. SKAdNetwork Multi-Réseaux (Optimise le remplissage des pubs)
+          /usr/libexec/PlistBuddy -c "Delete :SKAdNetworkItems" Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems array" Info.plist
+          
+          # Google
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0 dict" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork" Info.plist
+          
+          # AppLovin & autres partenaires majeurs
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:1 dict" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:1:SKAdNetworkIdentifier string 4fzdc2evr5.skadnetwork" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:2 dict" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:2:SKAdNetworkIdentifier string 2fnua5tdw4.skadnetwork" Info.plist
+
+          # 5. Versioning
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.5" Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
           
-          echo "✅ Info.plist mis à jour (Version 1.0.5 / ID AdMob injecté)"
+          echo "✅ Info.plist configuré pour une diffusion maximale"
 
       - name: Set up code signing
         script: |
