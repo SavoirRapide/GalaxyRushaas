@@ -86,9 +86,9 @@ workflows:
           fi
 
     artifacts:
-      # On cherche partout pour ne plus jamais avoir l'erreur "No artifacts found"
+      # Correction ici : ajout du chemin relatif 'ios' devant le dossier build
+      - ios/build/ios/ipa/*.ipa
       - build/ios/ipa/*.ipa
-      - ios/build/remote/ipa/*.ipa
       - /tmp/build/artifacts/*.ipa
       - "*.ipa"
 
