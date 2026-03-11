@@ -8182,7 +8182,7 @@ function hardRefreshCanvas() {
     }
 }
 /* =========================================================
-   📺 ADMOB MANAGER V6.1 (ULTIMATE FIX - NOMS D'ÉVÉNEMENTS V8)
+    📺 ADMOB MANAGER V7.0 (SÉCURITÉ RÉCOMPENSE iOS/ANDROID)
 ========================================================= */
 const AdMob = window.Capacitor && window.Capacitor.Plugins.AdMob;
 
@@ -8194,13 +8194,11 @@ const AD_IDS = {
 
 // 🛡️ Flags de contrôle global
 let rewardGranted = false; 
-let isDismissing = false;  
 let isAdMobInitialized = false; 
 
-// 💰 LE FACTEUR
-const handleReward = (item) => {
-    if (rewardGranted) return;
-    console.log("📬 AdMob : Le joueur a fini la vidéo. Récompense mise en attente !");
+// 💰 LE GESTIONNAIRE DE RÉCOMPENSE
+const handleReward = (reward) => {
+    console.log("📬 AdMob : Signal de récompense reçu du serveur !");
     rewardGranted = true; 
 };
 
@@ -8212,72 +8210,55 @@ async function initAds() {
     try {
         await AdMob.initialize();
 
-        // 🍎 iOS ATT
-        try { await AdMob.requestTrackingAuthorization(); } catch(e){}
+        // 🍎 iOS ATT (Demande d'autorisation de suivi)
+        if (window.Capacitor.getPlatform() === 'ios') {
+            try { await AdMob.requestTrackingAuthorization(); } catch(e){}
+        }
 
-        // Préparation
+        // Préparation initiale
         await AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
         await AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
 
-        // 🎯 ÉCOUTEURS DE RÉCOMPENSE (CORRIGÉS POUR V8)
-        const rewardEvents = [
-            'rewardedVideoAdReward',     // 🔥 LE VRAI NOM OFFICIEL V8 (iOS/Android)
-            'onRewardedVideoAdReward',   // Fallback Android
-            'rewardedVideoRewardItem', 
-            'rewarded', 
-            'onRewarded', 
-            'onAdReward'
-        ];
-        rewardEvents.forEach(evt => AdMob.addListener(evt, handleReward));
+        // 🎯 ÉCOUTEURS DE RÉCOMPENSE (Noms officiels Capacitor V8)
+        // onRewardedVideoAdReward est le plus fiable sur Android/iOS
+        AdMob.addListener('onRewardedVideoAdReward', handleReward);
 
-        // 📺 FERMETURE REWARD (CORRIGÉS POUR V8)
-        const dismissEvents = [
-            'rewardedVideoAdDismissed',  // 🔥 LE VRAI NOM OFFICIEL V8 (avec le "ed")
-            'onRewardedVideoAdDismissed',// Fallback Android
-            'rewardVideoAdDismissed'     // Fallback de ton ancienne faute de frappe
-        ];
+        // 📺 GESTION DE LA FERMETURE REWARD
+        AdMob.addListener('onRewardedVideoAdDismissed', () => {
+            console.log("📺 AdMob : Fenêtre de pub fermée.");
 
-        dismissEvents.forEach(evt => {
-            AdMob.addListener(evt, () => {
-                if (isDismissing) return;
-                isDismissing = true;
-
-                console.log(`📺 AdMob : Pub Reward fermée (via ${evt})`);
-
-                setTimeout(() => {
-                    if (rewardGranted) {
-                        console.log("✅ RÉCOMPENSE DISTRIBUÉE !");
-                        if (window.pendingRewardSuccess) window.pendingRewardSuccess();
-                    } else {
-                        console.log("❌ Pub fermée trop tôt, aucune récompense.");
-                        if (window.pendingRewardFail) window.pendingRewardFail();
+            /* ATTENTION iOS : La récompense arrive parfois 100ms APRÈS le dismiss.
+               On attend 500ms avant de vérifier pour être sûr.
+            */
+            setTimeout(() => {
+                if (rewardGranted) {
+                    console.log("✅ RÉCOMPENSE DISTRIBUÉE !");
+                    if (window.pendingRewardSuccess) {
+                        window.pendingRewardSuccess();
                     }
+                } else {
+                    console.log("❌ Aucune récompense validée par le serveur.");
+                    if (window.pendingRewardFail) {
+                        window.pendingRewardFail();
+                    }
+                }
 
-                    // 🧹 RESET
-                    rewardGranted = false;
-                    window.pendingRewardSuccess = null;
-                    window.pendingRewardFail = null;
+                // 🧹 RESET pour la prochaine pub
+                rewardGranted = false;
+                window.pendingRewardSuccess = null;
+                window.pendingRewardFail = null;
 
-                    if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
-                    AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
-
-                    setTimeout(() => { isDismissing = false; }, 1000);
-                }, 600);
-            });
+                // Rafraîchissement du jeu et préchargement
+                if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
+                AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
+            }, 1200); 
         });
 
         // 📺 FERMETURE INTERSTITIEL
-        const interstitialDismissEvents = [
-            'interstitialAdDismissed', 
-            'onInterstitialAdDismissed'
-        ];
-        
-        interstitialDismissEvents.forEach(evt => {
-            AdMob.addListener(evt, () => {
-                console.log(`📺 AdMob : Interstitiel fermé (via ${evt})`);
-                if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
-                AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
-            });
+        AdMob.addListener('onInterstitialAdDismissed', () => {
+            console.log("📺 AdMob : Interstitiel fermé.");
+            if (typeof hardRefreshCanvas === 'function') hardRefreshCanvas();
+            AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
         });
 
     } catch (e) { 
@@ -8286,9 +8267,9 @@ async function initAds() {
     }
 }
 
-// --- 2. VIDE LES BANNIÈRES ---
-async function showBanner() { return; }
-async function hideBanner() { return; }
+// --- 2. FONCTIONS UTILES ---
+async function showBanner() { return; } // Non utilisé
+async function hideBanner() { return; } // Non utilisé
 
 // --- 3. INTERSTITIAL (GAME OVER) ---
 async function showGameOverAd() {
@@ -8297,6 +8278,7 @@ async function showGameOverAd() {
         await AdMob.showInterstitial();
     } catch (e) {
         console.warn("Interstital Fail:", e);
+        // On tente de re-préparer si ça a échoué
         AdMob.prepareInterstitial({ adId: AD_IDS.interstitial, isTesting: AD_IDS.isTesting });
     }
 }
@@ -8304,33 +8286,32 @@ async function showGameOverAd() {
 // --- 4. REWARD (REVIVE & SHOP) ---
 async function showRewardedAd(onSuccess, onFail) {
     if (!AdMob) { 
-        console.log("💻 Mode Web: Simulation Pub Récompense");
+        console.log("💻 Mode Web: Simulation Succès");
         if(onSuccess) onSuccess(); 
         return; 
     }
 
     try {
-        rewardGranted = false; 
-        isDismissing = false;
-        
+        rewardGranted = false; // Reset avant affichage
         window.pendingRewardSuccess = onSuccess;
         window.pendingRewardFail = onFail; 
         
-        console.log("🎬 Lancement de la vidéo AdMob...");
+        console.log("🎬 Lancement de la vidéo...");
         await AdMob.showRewardVideoAd();
     } catch (e) {
-        console.warn("Reward Fail:", e);
+        console.warn("Reward Show Fail:", e);
         if(onFail) onFail();
         window.pendingRewardSuccess = null;
         window.pendingRewardFail = null;
+        // Re-préparation en cas d'échec
         AdMob.prepareRewardVideoAd({ adId: AD_IDS.reward, isTesting: AD_IDS.isTesting });
     }
 }
 
-// Override sécurité
-window.isAdSystemReady = function() { return true; };
+// Interface de sécurité
+window.isAdSystemReady = function() { return isAdMobInitialized; };
 
-// 🚀 Lancement 
+// 🚀 LANCEMENT AUTOMATIQUE
 if (window.Capacitor) {
     initAds();
 } else {
