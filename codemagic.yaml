@@ -26,13 +26,10 @@ workflows:
         script: |
           npm run build || echo "⚠️ No build script found, skipping..."
 
-      - name: Sync Capacitor & Pods
+      - name: Sync Capacitor
         script: |
-          # On synchronise le code web vers le projet natif
+          # On synchronise. Capacitor s'occupe de Firebase tout seul avec SPM.
           npx cap sync ios
-          # On installe les librairies Google/Firebase dans Xcode
-          cd ios/App
-          pod install --repo-update
 
       - name: Configure Info.plist (AdMob & Versions)
         script: |
@@ -64,7 +61,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.5" Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
 
-          echo "✅ Info.plist configuré avec AdMob et Firebase"
+          echo "✅ Info.plist configuré"
 
       - name: Set up code signing
         script: |
@@ -73,6 +70,7 @@ workflows:
       - name: Build and export IPA
         script: |
           cd ios
+          # On cherche le workspace généré par SPM
           WORKSPACE=$(find . -maxdepth 3 -name "*.xcworkspace" | head -n 1)
           xcode-project build-ipa --workspace "$WORKSPACE" --scheme App
 
