@@ -3,8 +3,10 @@ workflows:
     name: Galaxy Rush Firebase Link Test
     max_build_duration: 60
     instance_type: mac_mini_m2
+
     integrations:
       app_store_connect: AppStoreGalaxyRush
+
     environment:
       xcode: latest
       node: 22
@@ -31,8 +33,10 @@ workflows:
       - name: Configure AdMob & Version
         script: |
           cd ios/App/App
+          # AdMob
           /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ADMOB_APP_ID" Info.plist
+          # Version 1.0.5
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.5" Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
 
@@ -44,6 +48,7 @@ workflows:
         script: |
           cd ios
           WORKSPACE=$(find . -maxdepth 3 -name "*.xcworkspace" | head -n 1)
+          # On s'assure que le build Xcode inclut bien les ressources (le .plist)
           xcode-project build-ipa --workspace "$WORKSPACE" --scheme App
 
     artifacts:
