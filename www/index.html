@@ -8322,7 +8322,7 @@ if (window.Capacitor) {
     document.addEventListener('deviceready', initAds, false);
 }
 </script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+ <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
 
 <script>
@@ -8332,15 +8332,15 @@ if (window.Capacitor) {
     projectId: "galaxy-rush-9e34e",
     storageBucket: "galaxy-rush-9e34e.appspot.com",
     messagingSenderId: "133575459059",
-    // Ton ID spécifique iOS que tu m'as donné :
-    appId: "1:133575459059:ios:875aa25dafb2b34ab73786"
+    // ICI : Remplace l'ID qui finit par :ios: par celui qui finit par :web:
+    appId: "1:133575459059:web:XXXXXXXvotre_nouvel_id_webXXXXXXX" 
   };
 
   // Initialisation sans crash
   if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
       firebase.analytics();
-      console.log("🚀 Firebase iOS est connecté et prêt !");
+      console.log("🚀 Firebase Web-in-iOS est connecté !");
   }
 </script>
 </body>
