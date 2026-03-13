@@ -20,15 +20,18 @@ workflows:
       - name: Install dependencies
         script: |
           npm install
-          # On nettoie toute trace du plugin natif pour stopper le crash
+          # Suppression forcée du plugin natif pour éviter le crash
           npm uninstall @capacitor-firebase/app || true
 
       - name: Build web assets
         script: |
+          # Construction de ton jeu (ton index.html modifié sera inclus ici)
           npm run build || echo "Skip build"
 
-      - name: Sync Capacitor
+      - name: Sync and Cleanup Capacitor
         script: |
+          # Nettoie les anciens liens natifs et synchronise le nouveau code web
+          npx cap cleanup ios
           npx cap sync ios
 
       - name: Configure AdMob & Version
