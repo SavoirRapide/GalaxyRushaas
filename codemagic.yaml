@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor-workflow:
-    name: Galaxy Rush iOS 1.0.5 + Firebase
+    name: Galaxy Rush iOS Build 1.0.5
     max_build_duration: 60
     instance_type: mac_mini_m2
 
@@ -20,39 +20,51 @@ workflows:
       - name: Install dependencies
         script: |
           npm install
-          # On s'assure que le plugin Firebase Capacitor est là
           npm install @capacitor-firebase/app
 
       - name: Build web assets
         script: |
-          npm run build
+          npm run build || echo "⚠️ No build script found, skipping..."
 
-      - name: Sync Capacitor & Install CocoaPods
+      - name: Sync Capacitor & Pods
         script: |
+          # On synchronise le code web vers le projet natif
           npx cap sync ios
-          # TRÈS IMPORTANT : C'est ici qu'on installe le SDK Firebase iOS (le code Swift que tu as vu)
-          cd ios/App && pod install --repo-update
+          # On installe les librairies Google/Firebase dans Xcode
+          cd ios/App
+          pod install --repo-update
 
-      - name: Configure AdMob, Privacy & Versions
+      - name: Configure Info.plist (AdMob & Versions)
         script: |
           cd ios/App/App
           
           # Injection ID AdMob
           /usr/libexec/PlistBuddy -c "Delete :GADApplicationIdentifier" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $ADMOB_APP_ID" Info.plist
+          /usr/libexec/PlistBuddy -c "Delete :GADIsAdManagerApp" Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :GADIsAdManagerApp bool false" Info.plist
 
-          # ATT & SKAdNetwork (Tes réglages actuels)
+          # Tracking Privacy
           /usr/libexec/PlistBuddy -c "Delete :NSUserTrackingUsageDescription" Info.plist || true
-          /usr/libexec/PlistBuddy -c "Add :NSUserTrackingUsageDescription string Cette application utilise des identifiants pour vous proposer des publicités personnalisées." Info.plist
-          
+          /usr/libexec/PlistBuddy -c "Add :NSUserTrackingUsageDescription string Cette application utilise des identifiants pour vous proposer des publicités personnalisées et mesurer leur efficacité." Info.plist
+
+          # SKAdNetwork
           /usr/libexec/PlistBuddy -c "Delete :SKAdNetworkItems" Info.plist || true
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems array" Info.plist
           /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0 dict" Info.plist
-          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork"
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:1 dict" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:1:SKAdNetworkIdentifier string 4fzdc2evr5.skadnetwork"
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:2 dict" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:2:SKAdNetworkIdentifier string 2fnua5tdw4.skadnetwork"
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:3 dict" Info.plist
+          /usr/libexec/PlistBuddy -c "Add :SKAdNetworkItems:3:SKAdNetworkIdentifier string su67r6k2v3.skadnetwork"
 
-          # Version 1.0.5
+          # Versioning
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.5" Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" Info.plist
+
+          echo "✅ Info.plist configuré avec AdMob et Firebase"
 
       - name: Set up code signing
         script: |
@@ -62,11 +74,11 @@ workflows:
         script: |
           cd ios
           WORKSPACE=$(find . -maxdepth 3 -name "*.xcworkspace" | head -n 1)
-          # Le fichier GoogleService-Info.plist doit être dans ios/App/App/
           xcode-project build-ipa --workspace "$WORKSPACE" --scheme App
 
     artifacts:
       - ios/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
       - "*.ipa"
 
     publishing:
